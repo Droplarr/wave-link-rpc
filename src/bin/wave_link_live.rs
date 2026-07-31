@@ -1,7 +1,7 @@
 use std::process::ExitCode;
 use std::time::Duration;
 use wave_link_rpc::{
-    ChannelId, Discovery, FadeCurve, FadeOptions, Operation, Volume, WaveLinkClient,
+    ChannelId, Discovery, FadeCurve, FadeOptions, Operation, SynchronizedClient, Volume,
 };
 
 #[tokio::main(flavor = "current_thread")]
@@ -28,27 +28,29 @@ async fn run() -> wave_link_rpc::Result<()> {
         ));
     }
 
-    let endpoint = Discovery::msix_default()?.discover().await?;
-    let client = WaveLinkClient::connect(&endpoint).await?;
-    let snapshot = client.snapshot().await?;
+    let client = SynchronizedClient::spawn(Discovery::msix_default()?);
+    let snapshot = client.ready().await?;
     println!(
         "interface_revision={}",
         snapshot.application.interface_revision
     );
-    println!("compatibility={:?}", client.compatibility());
+    println!("connection_state={:?}", client.state());
     println!("channels={}", snapshot.channels.len());
     println!("mixes={}", snapshot.mixes.len());
     println!("input_devices={}", snapshot.input_devices.len());
     println!("output_devices={}", snapshot.output_devices.len());
-    if mode == "bounded-write" {
-        run_bounded_writes(&client, &snapshot).await?;
-    }
-    client.close().await?;
-    Ok(())
+    let validation = if mode == "bounded-write" {
+        run_bounded_writes(&client, &snapshot).await
+    } else {
+        client.refresh().await.map(|_| ())
+    };
+    let shutdown = client.shutdown().await;
+    validation.and(shutdown)
 }
 
+#[allow(clippy::too_many_lines)]
 async fn run_bounded_writes(
-    client: &WaveLinkClient,
+    client: &SynchronizedClient,
     snapshot: &wave_link_rpc::MixerSnapshot,
 ) -> wave_link_rpc::Result<()> {
     let channel = snapshot.channels.first().ok_or_else(|| {
@@ -63,8 +65,16 @@ async fn run_bounded_writes(
             "bounded write validation requires one mix",
         )
     })?;
-    let channel_level = number(&channel.state, "level")?;
-    let channel_mute = boolean(&channel.state, "isMuted")?;
+    let channel_level = channel
+        .volume()?
+        .ok_or_else(|| missing("channel volume"))?
+        .get();
+    let channel_mute = channel.muted().ok_or_else(|| missing("channel mute"))?;
+    let channel_mix = channel
+        .participating_mixes()?
+        .into_iter()
+        .find_map(|state| state.volume.map(|volume| (state.id, volume)))
+        .ok_or_else(|| missing("channel mix volume"))?;
     let mix_level = number(&mix.state, "level")?;
     let mix_mute = boolean(&mix.state, "isMuted")?;
     let channel_target = bounded_target(channel_level)?;
@@ -82,6 +92,26 @@ async fn run_bounded_writes(
         },
     )
     .await?;
+
+    let channel_mix_target = bounded_target(channel_mix.1.get())?;
+    client
+        .fade_channel_mix_volume(
+            channel.id.clone(),
+            channel_mix.0.clone(),
+            channel_mix_target,
+            FadeOptions {
+                duration: Duration::from_millis(250),
+                curve: FadeCurve::Linear,
+            },
+        )
+        .await?;
+    client
+        .apply(&Operation::SetChannelMixVolume {
+            channel: channel.id.clone(),
+            mix: channel_mix.0,
+            volume: channel_mix.1,
+        })
+        .await?;
     mutate_and_restore(
         client,
         Operation::SetChannelMute {
@@ -122,7 +152,6 @@ async fn run_bounded_writes(
     client
         .fade_channel_volume(
             channel.id.clone(),
-            Volume::new(channel_level)?,
             channel_target,
             FadeOptions {
                 duration: Duration::from_millis(250),
@@ -136,14 +165,14 @@ async fn run_bounded_writes(
             volume: Volume::new(channel_level)?,
         })
         .await?;
-    let restored = client.snapshot().await?;
+    let restored = client.refresh().await?;
     verify_channel_level(&restored, &channel.id, channel_level)?;
     println!("bounded_write_validation=passed");
     Ok(())
 }
 
 async fn mutate_and_restore(
-    client: &WaveLinkClient,
+    client: &SynchronizedClient,
     mutation: Operation,
     restoration: Operation,
 ) -> wave_link_rpc::Result<()> {
@@ -152,8 +181,15 @@ async fn mutate_and_restore(
         return Err(error);
     }
     client.apply(&restoration).await?;
-    let _ = client.snapshot().await?;
+    let _ = client.refresh().await?;
     Ok(())
+}
+
+fn missing(field: &'static str) -> wave_link_rpc::Error {
+    wave_link_rpc::Error::new(
+        wave_link_rpc::ErrorKind::CapabilityUnavailable,
+        format!("live target omitted {field}"),
+    )
 }
 
 fn bounded_target(current: f32) -> wave_link_rpc::Result<Volume> {
