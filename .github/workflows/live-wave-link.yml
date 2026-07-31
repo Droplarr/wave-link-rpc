@@ -4,12 +4,17 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Validation mode (write remains locked until its reviewed harness exists)
+        description: Validation mode
         required: true
         default: read
         type: choice
         options:
           - read
+          - bounded-write
+      authorize_bounded_writes:
+        description: Type AUTHORIZE-BOUNDED-WRITES for write mode
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -25,9 +30,12 @@ jobs:
     timeout-minutes: 10
     env:
       WAVE_LINK_LIVE_MODE: ${{ inputs.mode }}
+      WAVE_LINK_WRITE_AUTHORIZATION: ${{ inputs.authorize_bounded_writes }}
       RUST_BACKTRACE: "1"
     steps:
       - uses: actions/checkout@v5
       - name: Run live validation
         shell: cmd
-        run: cargo run --locked --bin wave_link_live
+        run: |
+          if "%WAVE_LINK_LIVE_MODE%"=="bounded-write" if not "%WAVE_LINK_WRITE_AUTHORIZATION%"=="AUTHORIZE-BOUNDED-WRITES" exit /b 2
+          cargo run --locked --bin wave_link_live

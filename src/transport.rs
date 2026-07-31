@@ -69,6 +69,15 @@ impl WaveLinkClient {
         } else {
             Compatibility::ReadOnlyUnknownRevision(application.interface_revision)
         };
+        let writes = if compatibility.writes_allowed() {
+            vec![
+                crate::WriteCapability::Volume,
+                crate::WriteCapability::Mute,
+                crate::WriteCapability::PerMixState,
+            ]
+        } else {
+            Vec::new()
+        };
         let capabilities = Capabilities::new(
             [
                 ReadCapability::Application,
@@ -77,7 +86,7 @@ impl WaveLinkClient {
                 ReadCapability::InputDevices,
                 ReadCapability::OutputDevices,
             ],
-            [],
+            writes,
         );
         Ok(Self {
             state,
@@ -121,6 +130,20 @@ impl WaveLinkClient {
             input_devices,
             output_devices,
         })
+    }
+
+    pub(crate) async fn call_with_params<T: DeserializeOwned>(
+        &self,
+        method: &str,
+        params: Value,
+    ) -> Result<T> {
+        if !self.compatibility.writes_allowed() {
+            return Err(Error::new(
+                ErrorKind::UnsupportedRevision,
+                "writes are locked for this interface revision",
+            ));
+        }
+        rpc_with_params(&self.state, method, params).await
     }
 
     /// Closes the transport with a bounded handshake wait.
@@ -207,13 +230,21 @@ async fn rpc_collection<T: DeserializeOwned>(
 }
 
 async fn rpc<T: DeserializeOwned>(state: &Arc<Mutex<State>>, method: &str) -> Result<T> {
+    rpc_with_params(state, method, Value::Null).await
+}
+
+async fn rpc_with_params<T: DeserializeOwned>(
+    state: &Arc<Mutex<State>>,
+    method: &str,
+    params: Value,
+) -> Result<T> {
     let mut state = state.lock().await;
     let id = state.next_id;
     state.next_id = state
         .next_id
         .checked_add(1)
         .ok_or_else(|| Error::new(ErrorKind::Protocol, "JSON-RPC request ID space exhausted"))?;
-    let request = json!({"jsonrpc": "2.0", "id": id, "method": method, "params": null});
+    let request = json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params});
     state
         .socket
         .send(Message::Text(request.to_string().into()))
