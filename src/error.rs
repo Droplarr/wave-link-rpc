@@ -18,8 +18,18 @@ pub enum ErrorKind {
     Protocol,
     #[error("transport error")]
     Transport,
+    #[error("discovery failed")]
+    Discovery,
+    #[error("request timed out")]
+    Timeout,
     #[error("client is shut down")]
     Shutdown,
+}
+
+impl From<std::io::Error> for Error {
+    fn from(error: std::io::Error) -> Self {
+        Self::new(ErrorKind::Discovery, error.to_string())
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, thiserror::Error)]
