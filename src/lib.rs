@@ -5,11 +5,17 @@
 //! errors so consumers do not depend on private JSON-RPC details.
 
 mod capability;
+mod discovery;
 mod error;
 mod id;
+mod snapshot;
+mod transport;
 mod value;
 
 pub use capability::{Capabilities, ReadCapability, WriteCapability};
+pub use discovery::{Discovery, Endpoint};
 pub use error::{Error, ErrorKind, Result};
 pub use id::{ChannelId, InputDeviceId, MixId, OutputDeviceId};
+pub use snapshot::{ApplicationInfo, Channel, InputDevice, MixerSnapshot, OutputDevice, OutputMix};
+pub use transport::{Compatibility, WaveLinkClient};
 pub use value::{Gain, MixBalance, MuteState, Volume};
