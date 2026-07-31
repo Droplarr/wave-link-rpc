@@ -2,6 +2,19 @@
 
 All notable changes are documented here. Releases follow Semantic Versioning.
 
+## 0.1.1 - 2026-07-31
+
+- Added normalized channel volume, mute, and participating-mix accessors with
+  typed `ChannelMixState` values.
+- Added lifecycle-safe mutation, ordered batch, and authoritative refresh APIs
+  to `SynchronizedClient`.
+- Added channel and channel/mix fades with per-target replacement, explicit
+  cancellation, disconnect/shutdown cancellation, monotonic timing, and exact
+  final endpoints.
+- Added post-mutation resynchronization and deterministic mock coverage for
+  success, partial failure, read-only revisions, fades, and cancellation.
+- Preserved the public 0.1.0 API while extending the synchronized client.
+
 ## 0.1.0 - 2026-07-31
 
 - Added Windows MSIX discovery and revision-aware loopback JSON-RPC transport.
@@ -14,4 +27,3 @@ All notable changes are documented here. Releases follow Semantic Versioning.
   validation.
 - Established the compatibility, security, contribution, privacy, and release
   policies for the initial unofficial Rust SDK.
-
