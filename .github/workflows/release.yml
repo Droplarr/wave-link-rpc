@@ -1,0 +1,117 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact Cargo package version
+        required: true
+        type: string
+      confirmation:
+        description: Type RELEASE-v<version>
+        required: true
+        type: string
+      publish:
+        description: Permanently publish to crates.io and create the GitHub Release
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      crate: ${{ steps.package.outputs.crate }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.85.0
+          components: clippy, rustfmt
+      - name: Validate release request
+        env:
+          VERSION: ${{ inputs.version }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          test "$GITHUB_REF_NAME" = "main"
+          test "$CONFIRMATION" = "RELEASE-v$VERSION"
+          manifest_version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
+          test "$manifest_version" = "$VERSION"
+          test ! -n "$(git tag -l "v$VERSION")"
+      - run: cargo fmt --all --check
+      - run: cargo clippy --all-targets --all-features --locked -- -D warnings
+      - run: cargo test --all-features --locked
+      - run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features --locked
+      - name: Package and inspect
+        id: package
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          cargo package --locked
+          cargo package --locked --list | tee package-files.txt
+          crate="wave-link-rpc-$VERSION.crate"
+          cp "target/package/$crate" "$crate"
+          sha256sum "$crate" | tee "$crate.sha256"
+          echo "crate=$crate" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-candidate-${{ inputs.version }}
+          path: |
+            ${{ steps.package.outputs.crate }}
+            ${{ steps.package.outputs.crate }}.sha256
+            package-files.txt
+          if-no-files-found: error
+
+  attest:
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: release-candidate-${{ inputs.version }}
+      - uses: actions/attest@v4
+        with:
+          subject-path: ${{ needs.validate.outputs.crate }}
+
+  publish:
+    if: ${{ inputs.publish }}
+    needs: [validate, attest]
+    runs-on: ubuntu-latest
+    environment: crates-io
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.85.0
+      - uses: actions/download-artifact@v5
+        with:
+          name: release-candidate-${{ inputs.version }}
+      - name: Publish immutable crate
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --locked
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          CRATE: ${{ needs.validate.outputs.crate }}
+        run: |
+          gh release create "v$VERSION" "$CRATE" "$CRATE.sha256" \
+            --target "$GITHUB_SHA" --title "wave-link-rpc $VERSION" --generate-notes

@@ -6,9 +6,12 @@ rust-version = "1.85"
 license = "Apache-2.0"
 description = "Unofficial typed Rust SDK for the Wave Link loopback RPC interface"
 repository = "https://github.com/Droplarr/wave-link-rpc"
+homepage = "https://github.com/Droplarr/wave-link-rpc"
+documentation = "https://docs.rs/wave-link-rpc"
 readme = "README.md"
 keywords = ["audio", "mixer", "wave-link", "websocket"]
 categories = ["api-bindings", "multimedia::audio"]
+exclude = [".github/**", "src/bin/**"]
 
 [features]
 default = []
