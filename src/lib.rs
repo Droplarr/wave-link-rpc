@@ -22,6 +22,8 @@ pub use lifecycle::{ConnectionState, Event, Subscription, SynchronizedClient};
 pub use mutation::{
     BatchResult, FadeCurve, FadeOptions, Operation, OperationResult, OperationStatus,
 };
-pub use snapshot::{ApplicationInfo, Channel, InputDevice, MixerSnapshot, OutputDevice, OutputMix};
+pub use snapshot::{
+    ApplicationInfo, Channel, ChannelMixState, InputDevice, MixerSnapshot, OutputDevice, OutputMix,
+};
 pub use transport::{Compatibility, WaveLinkClient};
 pub use value::{Gain, MixBalance, MuteState, Volume};
