@@ -9,6 +9,7 @@ mod discovery;
 mod error;
 mod id;
 mod lifecycle;
+mod mutation;
 mod snapshot;
 mod transport;
 mod value;
@@ -18,6 +19,9 @@ pub use discovery::{Discovery, Endpoint};
 pub use error::{Error, ErrorKind, Result};
 pub use id::{ChannelId, InputDeviceId, MixId, OutputDeviceId};
 pub use lifecycle::{ConnectionState, Event, Subscription, SynchronizedClient};
+pub use mutation::{
+    BatchResult, FadeCurve, FadeOptions, Operation, OperationResult, OperationStatus,
+};
 pub use snapshot::{ApplicationInfo, Channel, InputDevice, MixerSnapshot, OutputDevice, OutputMix};
 pub use transport::{Compatibility, WaveLinkClient};
 pub use value::{Gain, MixBalance, MuteState, Volume};
