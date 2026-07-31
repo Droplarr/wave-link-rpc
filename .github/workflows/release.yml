@@ -82,9 +82,10 @@ jobs:
       - uses: actions/download-artifact@v5
         with:
           name: release-candidate-${{ inputs.version }}
+          path: ${{ runner.temp }}/release-candidate
       - uses: actions/attest@v4
         with:
-          subject-path: ${{ needs.validate.outputs.crate }}
+          subject-path: ${{ runner.temp }}/release-candidate/${{ needs.validate.outputs.crate }}
 
   publish:
     if: ${{ inputs.publish }}
@@ -103,6 +104,7 @@ jobs:
       - uses: actions/download-artifact@v5
         with:
           name: release-candidate-${{ inputs.version }}
+          path: ${{ runner.temp }}/release-candidate
       - name: Publish immutable crate
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
@@ -113,5 +115,7 @@ jobs:
           VERSION: ${{ inputs.version }}
           CRATE: ${{ needs.validate.outputs.crate }}
         run: |
-          gh release create "v$VERSION" "$CRATE" "$CRATE.sha256" \
+          gh release create "v$VERSION" \
+            "$RUNNER_TEMP/release-candidate/$CRATE" \
+            "$RUNNER_TEMP/release-candidate/$CRATE.sha256" \
             --target "$GITHUB_SHA" --title "wave-link-rpc $VERSION" --generate-notes
