@@ -1,0 +1,16 @@
+{
+  "case": "revision-2-application-info",
+  "input": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+      "interfaceRevision": 2,
+      "applicationVersion": "3.x-redacted"
+    }
+  },
+  "expected": {
+    "interfaceRevision": 2,
+    "writePolicy": "verified-capabilities-only"
+  }
+}
+

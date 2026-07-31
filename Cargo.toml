@@ -1,0 +1,30 @@
+[package]
+name = "wave-link-rpc"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "Apache-2.0"
+description = "Unofficial typed Rust SDK for the Wave Link loopback RPC interface"
+repository = "https://github.com/Droplarr/wave-link-rpc"
+readme = "README.md"
+keywords = ["audio", "mixer", "wave-link", "websocket"]
+categories = ["api-bindings", "multimedia::audio"]
+
+[features]
+default = []
+unstable-raw = []
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "2.0"
+
+[dev-dependencies]
+serde_json = "1.0"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = "deny"
+pedantic = "deny"
+
