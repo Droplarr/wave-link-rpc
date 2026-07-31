@@ -1,0 +1,38 @@
+name: Live Wave Link validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Validation mode (write remains locked until its reviewed harness exists)
+        required: true
+        default: read
+        type: choice
+        options:
+          - read
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wave-link-live
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Windows Wave Link read validation
+    runs-on: [self-hosted, Windows, X64, wave-link-live]
+    timeout-minutes: 10
+    env:
+      WAVE_LINK_LIVE_MODE: ${{ inputs.mode }}
+      RUST_BACKTRACE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify read-only mode
+        shell: pwsh
+        run: |
+          if ($env:WAVE_LINK_LIVE_MODE -ne "read") {
+            throw "Only read-only validation is currently authorized by this workflow revision."
+          }
+      - name: Run live validation
+        run: cargo run --locked --bin wave_link_live
