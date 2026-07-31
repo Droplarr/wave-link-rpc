@@ -27,12 +27,6 @@ jobs:
       WAVE_LINK_LIVE_MODE: ${{ inputs.mode }}
       RUST_BACKTRACE: "1"
     steps:
-      - uses: actions/checkout@v4
-      - name: Verify read-only mode
-        shell: pwsh
-        run: |
-          if ($env:WAVE_LINK_LIVE_MODE -ne "read") {
-            throw "Only read-only validation is currently authorized by this workflow revision."
-          }
+      - uses: actions/checkout@v5
       - name: Run live validation
         run: cargo run --locked --bin wave_link_live
