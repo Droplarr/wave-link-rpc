@@ -136,6 +136,37 @@ impl WaveLinkClient {
         Ok(())
     }
 
+    pub(crate) async fn wait_for_notification(&self) -> Result<()> {
+        let mut state = self.state.lock().await;
+        loop {
+            let message = state.socket.next().await.ok_or_else(|| {
+                Error::new(ErrorKind::Transport, "Wave Link closed the connection")
+            })?;
+            let message = message.map_err(map_transport)?;
+            match message {
+                Message::Text(text) => {
+                    let value: Value = serde_json::from_str(&text)
+                        .map_err(|error| Error::new(ErrorKind::Protocol, error.to_string()))?;
+                    if value.get("id").is_none() && value.get("method").is_some() {
+                        return Ok(());
+                    }
+                }
+                Message::Ping(payload) => state
+                    .socket
+                    .send(Message::Pong(payload))
+                    .await
+                    .map_err(map_transport)?,
+                Message::Close(_) => {
+                    return Err(Error::new(
+                        ErrorKind::Transport,
+                        "Wave Link closed the connection",
+                    ));
+                }
+                _ => {}
+            }
+        }
+    }
+
     #[cfg(feature = "unstable-raw")]
     /// Performs an unchecked raw RPC request.
     ///
